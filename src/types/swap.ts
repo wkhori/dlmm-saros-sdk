@@ -1,4 +1,4 @@
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, Transaction } from '@solana/web3.js';
 
 /**
  * BigInt Usage Pattern
@@ -11,6 +11,11 @@ export interface SwapOptions {
   /** Swap direction: true = X to Y, false = Y to X */
   swapForY: boolean;
   /** Execution mode: true = exact input amount, false = exact output amount */
+  isExactInput: boolean;
+}
+
+export interface QuoteAndSwapOptions {
+
   isExactInput: boolean;
 }
 
@@ -42,6 +47,38 @@ export interface SwapParams {
   minTokenOut: bigint;
   /** Wallet executing the swap */
   payer: PublicKey;
+}
+
+export interface QuoteAndSwapParams {
+
+  tokenIn: PublicKey;
+
+  tokenOut: PublicKey;
+
+  amount: bigint;
+
+  options: QuoteAndSwapOptions;
+
+  slippage: number;
+
+  payer: PublicKey;
+}
+
+export interface QuoteAndSwapResponse {
+
+  tx: Transaction;
+
+  quote: {
+
+    amountIn: bigint;
+
+    amountOut: bigint;
+
+    priceImpact: number;
+
+    minTokenOut: bigint;
+
+  }
 }
 
 /** Parameters for getting a swap quote */

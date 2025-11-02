@@ -111,6 +111,61 @@ describe('Swap Integration Tests', () => {
       expect(gainedQuote).toBeLessThanOrEqual(quote.amountOut);
     });
 
+    it('performs X→Y swap with exact input with getQuoteAndSwap', async () => {
+      // Exact input: Spend exactly amountIn of tokenX, receive variable amountOut of tokenY (SOL)
+      // Measure native SOL balance and account for wSOL rent returned when account closes
+      const { wallet, connection } = global.testEnv;
+
+      const balBeforeBase = await getTokenBalance(connection, wallet.keypair.publicKey, tokenX);
+      const balBeforeQuote = await connection.getBalance(wallet.keypair.publicKey);
+      const wsolAccountRent = await getWsolAccountRent(connection);
+
+      const amountIn = 1_000_000_000n; // 1 SAROSDEV
+      // const quote = await pair.getQuote({
+      //   amount: amountIn,
+      //   options: { swapForY: true, isExactInput: true },
+      //   slippage: 1,
+      // });
+
+      // Quote validation
+      //expect(quote.amountIn).toBe(amountIn);
+      //expect(quote.amountOut).toBeGreaterThan(0n);
+      //expect(quote.minTokenOut).toBeLessThanOrEqual(quote.amountOut);
+
+      const { tx, quote } = await pair.getQuoteAndSwap({
+        tokenIn: tokenX,
+        tokenOut: tokenY,
+        amount: amountIn,
+        options: { isExactInput: true },
+        slippage: 1,
+        payer: wallet.keypair.publicKey,
+      });
+
+      const sig = await connection.sendTransaction(tx, [wallet.keypair]);
+      await waitForConfirmation(sig, connection);
+
+      const balAfterBase = await getTokenBalance(connection, wallet.keypair.publicKey, tokenX);
+      const balAfterQuote = await connection.getBalance(wallet.keypair.publicKey);
+
+      // Get transaction fee to account for it
+      const txInfo = await connection.getTransaction(sig, { maxSupportedTransactionVersion: 0 });
+      const txFee = BigInt(txInfo?.meta?.fee || 0);
+
+      const spentBase = balBeforeBase - balAfterBase;
+      const totalGained = BigInt(balAfterQuote) - BigInt(balBeforeQuote) + txFee;
+
+      // Subtract wSOL account rent to get actual swap output
+      const gainedQuote = totalGained - wsolAccountRent;
+
+      // Exact input: must spend exactly amountIn
+      expect(spentBase).toBe(amountIn);
+      // Output must meet slippage protection
+      expect(gainedQuote).toBeGreaterThan(0n);
+      expect(gainedQuote).toBeGreaterThanOrEqual(quote.minTokenOut);
+      // Output should be close to quote (allowing for small variance)
+      expect(gainedQuote).toBeLessThanOrEqual(quote.amountOut);
+    });
+
     it('performs Y→X swap with exact input', async () => {
       // Exact input: Spend exactly amountIn of tokenY (SOL), receive variable amountOut of tokenX
       // When spending SOL, a wSOL account is created (costs rent), then closed (rent returned)
